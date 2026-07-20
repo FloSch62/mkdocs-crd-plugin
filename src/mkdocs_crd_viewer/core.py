@@ -17,6 +17,18 @@ import yaml
 _RENDER_COUNTER = itertools.count()
 
 
+class CRDLoader(yaml.SafeLoader):
+    pass
+
+
+# controller-gen emits string defaults like `default: =` unquoted. PyYAML treats
+# a bare `=` as the YAML 1.1 "value" indicator (tag:yaml.org,2002:value).
+# Treating them as a plain string instead.
+CRDLoader.add_constructor(
+    "tag:yaml.org,2002:value",
+    lambda loader, node: loader.construct_scalar(node),
+)
+
 class CrdRenderError(ValueError):
     """Raised when a CRD cannot be loaded or rendered."""
 
@@ -87,7 +99,7 @@ def load_crd_view(
         raise CrdRenderError(f"CRD file not found: {source_path}")
 
     with source_path.open("r", encoding="utf-8") as handle:
-        documents = [doc for doc in yaml.safe_load_all(handle) if isinstance(doc, dict)]
+        documents = [doc for doc in yaml.load_all(handle, Loader=CRDLoader) if isinstance(doc, dict)]
 
     crds = [doc for doc in documents if doc.get("kind") == "CustomResourceDefinition"]
     if not crds:
